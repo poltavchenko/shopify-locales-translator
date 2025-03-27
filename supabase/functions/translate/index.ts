@@ -11,7 +11,9 @@ interface TranslateRequest {
 const DEEPL_API_KEY = Deno.env.get('DEEPL_API_KEY') || '';
 const translator = new Translator(DEEPL_API_KEY);
 
+// Update the LANGUAGE_MAP to ensure it uses the correct DeepL language codes
 const LANGUAGE_MAP: Record<string, string> = {
+  pl: 'PL',
   de: 'DE',
   it: 'IT',
   es: 'ES',

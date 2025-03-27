@@ -6,6 +6,7 @@ import { LocaleData, SupportedLanguage, LANGUAGES } from './types';
 import { translateLocaleData } from './utils/translate';
 import { exportTranslations, downloadTranslations } from './utils/export';
 import { flattenObject } from './utils/flatten';
+import { Analytics } from '@vercel/analytics/react';
 
 function stripJsonComments(str: string): string {
   // Remove single line comments
@@ -26,11 +27,14 @@ function App() {
   );
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [languageErrors, setLanguageErrors] = useState<Record<string, string>>({});
+  const [progress, setProgress] = useState<{ total: number; completed: number }>({ total: 0, completed: 0 });
 
   const handleFileLoad = async (content: string) => {
     try {
       setIsLoading(true);
       setError(null);
+      setLanguageErrors({});
 
       // Strip comments and parse JSON
       const cleanContent = stripJsonComments(content);
@@ -44,20 +48,38 @@ function App() {
         'en-UK': flattenedSourceData,
       } as Record<SupportedLanguage, LocaleData>;
 
-      // Translate to all supported languages
-      for (const lang of Object.keys(LANGUAGES)) {
-        if (lang !== 'en-UK') {
-          try {
+      // Calculate total number of languages to translate
+      const languages = Object.keys(LANGUAGES).filter((lang) => lang !== 'en-UK');
+      setProgress({ total: languages.length, completed: 0 });
+
+      // Store language-specific errors
+      const errors: Record<string, string> = {};
+
+      // Translate to all supported languages, but continue even if one fails
+      for (const lang of languages) {
+        try {
+          // For Ukrainian, bypass translation as it's not supported by DeepL
+          if (lang === 'uk') {
+            initialTranslations[lang as SupportedLanguage] = flattenedSourceData;
+          } else {
             initialTranslations[lang as SupportedLanguage] = await translateLocaleData(
               flattenedSourceData,
               lang as SupportedLanguage
             );
-          } catch (translationError) {
-            console.error(`Error translating to ${lang}:`, translationError);
-            setError(`Failed to translate to ${LANGUAGES[lang as SupportedLanguage]}`);
-            return;
           }
+        } catch (translationError) {
+          console.error(`Error translating to ${lang}:`, translationError);
+          errors[lang] = `Failed to translate to ${LANGUAGES[lang as SupportedLanguage]}: ${translationError.message}`;
+          // Don't return here - continue with other languages
+        } finally {
+          setProgress((prev) => ({ ...prev, completed: prev.completed + 1 }));
         }
+      }
+
+      // Set any language-specific errors
+      if (Object.keys(errors).length > 0) {
+        setLanguageErrors(errors);
+        setError(`Translation completed with ${Object.keys(errors).length} language errors. See details below.`);
       }
 
       setTranslations(initialTranslations);
@@ -94,6 +116,23 @@ function App() {
           <div className="flex flex-col items-center space-y-8">
             <FileUploader onFileLoad={handleFileLoad} />
 
+            {isLoading && (
+              <div className="w-full max-w-md text-center">
+                <div className="mx-auto h-8 w-8 animate-spin rounded-full border-b-2 border-gray-900"></div>
+                <p className="mt-2 text-sm text-gray-500">
+                  Processing translations... ({progress.completed}/{progress.total})
+                </p>
+                {progress.total > 0 && (
+                  <div className="mt-2 h-2.5 w-full rounded-full bg-gray-200">
+                    <div
+                      className="h-2.5 rounded-full bg-indigo-600"
+                      style={{ width: `${(progress.completed / progress.total) * 100}%` }}
+                    ></div>
+                  </div>
+                )}
+              </div>
+            )}
+
             {error && (
               <div className="w-full max-w-2xl border-l-4 border-red-400 bg-red-50 p-4">
                 <div className="flex">
@@ -117,10 +156,19 @@ function App() {
               </div>
             )}
 
-            {isLoading && (
-              <div className="text-center">
-                <div className="mx-auto h-8 w-8 animate-spin rounded-full border-b-2 border-gray-900"></div>
-                <p className="mt-2 text-sm text-gray-500">Processing translations...</p>
+            {Object.keys(languageErrors).length > 0 && (
+              <div className="w-full max-w-2xl">
+                <h3 className="mb-2 text-sm font-medium text-gray-700">Language-specific errors:</h3>
+                <ul className="space-y-2">
+                  {Object.entries(languageErrors).map(([lang, errorMsg]) => (
+                    <li
+                      key={lang}
+                      className="border-l-4 border-yellow-400 bg-yellow-50 p-3"
+                    >
+                      <p className="text-sm text-yellow-700">{errorMsg}</p>
+                    </li>
+                  ))}
+                </ul>
               </div>
             )}
 
@@ -141,6 +189,7 @@ function App() {
           </div>
         </div>
       </div>
+      <Analytics />
     </div>
   );
 }
