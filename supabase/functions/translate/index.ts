@@ -143,6 +143,7 @@ Deno.serve(async (req) => {
     let requestData;
     try {
       requestData = await req.json();
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     } catch (e) {
       return new Response(JSON.stringify({ error: 'Invalid JSON in request body' }), {
         status: 400,

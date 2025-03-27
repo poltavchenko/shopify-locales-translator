@@ -58,6 +58,7 @@ export async function translateLocaleData(sourceData: LocaleData, targetLang: Su
             try {
               const error = await response.json();
               errorText = error.error || `HTTP error ${response.status}`;
+            // eslint-disable-next-line @typescript-eslint/no-unused-vars
             } catch (e) {
               errorText = `HTTP error ${response.status}`;
             }
