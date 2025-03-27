@@ -8,7 +8,7 @@ interface TranslateRequest {
   sourceData?: Record<string, string>;
 }
 
-const DEEPL_API_KEY = Deno.env.get('VITE_DEEPL_API_KEY') || '';
+const DEEPL_API_KEY = Deno.env.get('DEEPL_API_KEY') || '';
 const translator = new Translator(DEEPL_API_KEY);
 
 // Update the LANGUAGE_MAP to ensure it uses the correct DeepL language codes
@@ -25,11 +25,16 @@ const DO_NOT_TRANSLATE = ['Add to cart', 'Checkout', 'SKU', 'cart', 'Cart'];
 async function translateText(text: string, targetLang: string): Promise<string> {
   try {
     const deeplLang = LANGUAGE_MAP[targetLang] || targetLang.toUpperCase();
-    const result = await translator.translateText(text, null, deeplLang);
 
-    // The translator returns an array of translations or a single result
+    // Check if API key is available
+    if (!DEEPL_API_KEY) {
+      throw new Error('DeepL API key is missing');
+    }
+
+    const result = await translator.translateText(text, null, deeplLang);
     return Array.isArray(result) ? result[0].text : result.text;
   } catch (error) {
+    console.error('DeepL translation error:', error);
     throw new Error(`Translation failed: ${error.message}`);
   }
 }
@@ -96,6 +101,7 @@ async function translateLocaleData(
   return translatedData;
 }
 
+// filepath: /Users/poltavchenko/Desktop/Projects/Pocketbook_International_SA/test/shopify-locales-translator/supabase/functions/translate/index.ts
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -107,6 +113,13 @@ Deno.serve(async (req) => {
     if (!sourceData || !targetLang) {
       return new Response(JSON.stringify({ error: 'Missing required fields' }), {
         status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (!DEEPL_API_KEY) {
+      return new Response(JSON.stringify({ error: 'DeepL API key is not configured' }), {
+        status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
