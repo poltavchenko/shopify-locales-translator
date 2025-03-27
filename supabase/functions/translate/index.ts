@@ -13,11 +13,9 @@ const translator = new Translator(DEEPL_API_KEY);
 
 // Update the LANGUAGE_MAP to ensure it uses the correct DeepL language codes
 const LANGUAGE_MAP: Record<string, string> = {
-  pl: 'PL',
   de: 'DE',
   it: 'IT',
   es: 'ES',
-  ru: 'RU',
 };
 
 const DO_NOT_TRANSLATE = ['Add to cart', 'Checkout', 'SKU', 'cart', 'Cart'];
