@@ -1,7 +1,7 @@
 {
   "name": "shopify-locales-translator",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.0.1",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -21,6 +21,7 @@
   },
   "dependencies": {
     "deepl-node": "^1.12.0",
+    "deno.ns": "^0.8.0",
     "jszip": "^3.10.1",
     "lucide-react": "^0.344.0",
     "prettier": "^3.5.3",

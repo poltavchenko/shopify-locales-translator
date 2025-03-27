@@ -15,16 +15,16 @@ if (!fs.existsSync(outputDir)) {
 // Create a file to stream archive data to
 const output = fs.createWriteStream(path.join(outputDir, 'project.zip'));
 const archive = archiver('zip', {
-  zlib: { level: 9 } // Sets the compression level
+  zlib: { level: 9 }, // Sets the compression level
 });
 
 // Listen for all archive data to be written
-output.on('close', function() {
+output.on('close', function () {
   console.log(`Archive created successfully! Size: ${(archive.pointer() / 1024 / 1024).toFixed(2)} MB`);
 });
 
 // Good practice to catch warnings (ie stat failures and other non-blocking errors)
-archive.on('warning', function(err) {
+archive.on('warning', function (err) {
   if (err.code === 'ENOENT') {
     console.warn('Warning:', err);
   } else {
@@ -33,7 +33,7 @@ archive.on('warning', function(err) {
 });
 
 // Good practice to catch this error explicitly
-archive.on('error', function(err) {
+archive.on('error', function (err) {
   throw err;
 });
 
@@ -42,12 +42,7 @@ archive.pipe(output);
 
 // Add files and directories to the archive
 archive.glob('**/*', {
-  ignore: [
-    'node_modules/**',
-    'dist/**',
-    '.git/**',
-    '*.zip'
-  ]
+  ignore: ['node_modules/**', 'dist/**', '.git/**', '*.zip'],
 });
 
 // Finalize the archive

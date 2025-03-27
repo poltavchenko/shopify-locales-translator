@@ -1,14 +1,11 @@
 import { LocaleData, SupportedLanguage } from '../types';
 
-export async function translateLocaleData(
-  sourceData: LocaleData,
-  targetLang: SupportedLanguage
-): Promise<LocaleData> {
+export async function translateLocaleData(sourceData: LocaleData, targetLang: SupportedLanguage): Promise<LocaleData> {
   try {
     const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/translate`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+        Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({

@@ -1,4 +1,5 @@
-import { Translator } from 'npm:deepl-node@1.12.0';
+import { Deno } from 'deno.ns';
+import { Translator } from 'https://esm.sh/deepl-node@1.12.0';
 import { corsHeaders } from '../_shared/cors.ts';
 
 interface TranslateRequest {
@@ -11,21 +12,14 @@ const DEEPL_API_KEY = Deno.env.get('DEEPL_API_KEY') || '';
 const translator = new Translator(DEEPL_API_KEY);
 
 const LANGUAGE_MAP: Record<string, string> = {
-  'pl': 'PL',
-  'uk': 'UK',
-  'de': 'DE',
-  'it': 'IT',
-  'es': 'ES',
-  'en-UK': 'EN-GB'
+  pl: 'PL',
+  de: 'DE',
+  it: 'IT',
+  es: 'ES',
+  'en-UK': 'EN-GB',
 };
 
-const DO_NOT_TRANSLATE = [
-  'Add to cart',
-  'Checkout',
-  'SKU',
-  'cart',
-  'Cart'
-];
+const DO_NOT_TRANSLATE = ['Add to cart', 'Checkout', 'SKU', 'cart', 'Cart'];
 
 async function translateText(text: string, targetLang: string): Promise<string> {
   if (DO_NOT_TRANSLATE.includes(text)) {
@@ -33,15 +27,10 @@ async function translateText(text: string, targetLang: string): Promise<string> 
   }
 
   try {
-    const result = await translator.translateText(
-      text,
-      'EN',
-      LANGUAGE_MAP[targetLang],
-      {
-        formality: 'more',
-        preserveFormatting: true
-      }
-    );
+    const result = await translator.translateText(text, 'EN', LANGUAGE_MAP[targetLang], {
+      formality: 'more',
+      preserveFormatting: true,
+    });
 
     return result.text;
   } catch (error) {
@@ -84,25 +73,24 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { sourceData, targetLang } = await req.json() as TranslateRequest;
+    const { sourceData, targetLang } = (await req.json()) as TranslateRequest;
 
     if (!sourceData || !targetLang) {
-      return new Response(
-        JSON.stringify({ error: 'Missing required fields' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return new Response(JSON.stringify({ error: 'Missing required fields' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
     const translatedData = await translateLocaleData(sourceData, targetLang);
 
-    return new Response(
-      JSON.stringify(translatedData),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    return new Response(JSON.stringify(translatedData), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
   } catch (error) {
-    return new Response(
-      JSON.stringify({ error: error.message }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    return new Response(JSON.stringify({ error: error.message }), {
+      status: 500,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
   }
 });
