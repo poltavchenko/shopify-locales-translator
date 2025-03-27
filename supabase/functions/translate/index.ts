@@ -8,7 +8,7 @@ interface TranslateRequest {
   sourceData?: Record<string, string>;
 }
 
-const DEEPL_API_KEY = Deno.env.get('DEEPL_API_KEY') || '';
+const DEEPL_API_KEY = Deno.env.get('VITE_DEEPL_API_KEY') || '';
 const translator = new Translator(DEEPL_API_KEY);
 
 // Update the LANGUAGE_MAP to ensure it uses the correct DeepL language codes
@@ -17,25 +17,20 @@ const LANGUAGE_MAP: Record<string, string> = {
   de: 'DE',
   it: 'IT',
   es: 'ES',
+  uk: 'UK', // Note: DeepL likely doesn't support Ukrainian
 };
 
 const DO_NOT_TRANSLATE = ['Add to cart', 'Checkout', 'SKU', 'cart', 'Cart'];
 
 async function translateText(text: string, targetLang: string): Promise<string> {
-  if (DO_NOT_TRANSLATE.includes(text)) {
-    return text;
-  }
-
   try {
-    const result = await translator.translateText(text, 'EN', LANGUAGE_MAP[targetLang], {
-      formality: 'more',
-      preserveFormatting: true,
-    });
+    const deeplLang = LANGUAGE_MAP[targetLang] || targetLang.toUpperCase();
+    const result = await translator.translateText(text, null, deeplLang);
 
-    return result.text;
+    // The translator returns an array of translations or a single result
+    return Array.isArray(result) ? result[0].text : result.text;
   } catch (error) {
-    console.error('Translation error:', error);
-    throw new Error(`Failed to translate text: ${error.message}`);
+    throw new Error(`Translation failed: ${error.message}`);
   }
 }
 
@@ -56,6 +51,12 @@ async function translateLocaleData(
 
   for (const [key, value] of entries) {
     if (typeof value === 'string') {
+      // Skip translation for items in DO_NOT_TRANSLATE list
+      if (DO_NOT_TRANSLATE.includes(value)) {
+        translatedData[key] = value;
+        continue;
+      }
+
       // Add throttling to avoid rate limits
       if (requestCount > 0 && requestCount % THROTTLE_AFTER === 0) {
         await wait(THROTTLE_TIME);
