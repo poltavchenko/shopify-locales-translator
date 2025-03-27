@@ -18,6 +18,7 @@ async function retryWithBackoff<T>(fn: () => Promise<T>, retries = 3, backoffMs 
   }
 }
 
+// Add the DeepL API key in the headers
 export async function translateLocaleData(sourceData: LocaleData, targetLang: SupportedLanguage): Promise<LocaleData> {
   try {
     return await retryWithBackoff(async () => {
@@ -26,6 +27,7 @@ export async function translateLocaleData(sourceData: LocaleData, targetLang: Su
         headers: {
           Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
           'Content-Type': 'application/json',
+          'X-DeepL-API-Key': import.meta.env.VITE_DEEPL_API_KEY, // Add this line
         },
         body: JSON.stringify({
           sourceData,
