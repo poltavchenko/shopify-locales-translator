@@ -139,11 +139,18 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Create translator instance with the API key
-    const translator = new Translator(apiKey);
-
     // Parse request body
-    const { sourceData, targetLang } = (await req.json()) as TranslateRequest;
+    let requestData;
+    try {
+      requestData = await req.json();
+    } catch (e) {
+      return new Response(JSON.stringify({ error: 'Invalid JSON in request body' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    const { sourceData, targetLang } = requestData as TranslateRequest;
 
     // Validate request
     if (!sourceData || !targetLang) {
@@ -153,11 +160,30 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Perform translation
-    console.log(`Starting translation to ${targetLang} with ${Object.keys(sourceData).length} strings`);
-    const translatedData = await translateLocaleData(sourceData, targetLang, translator);
+    // Verify target language is supported
+    if (!LANGUAGE_MAP[targetLang] && !Object.values(LANGUAGE_MAP).includes(targetLang.toUpperCase())) {
+      return new Response(JSON.stringify({ error: `Unsupported target language: ${targetLang}` }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
 
-    // Return translated data - THIS WAS MISSING
+    // Try direct API call if translator instance fails
+    let translatedData;
+    try {
+      // Create translator instance with the API key
+      const translator = new Translator(apiKey);
+      console.log(`Starting translation to ${targetLang} with ${Object.keys(sourceData).length} strings`);
+      translatedData = await translateLocaleData(sourceData, targetLang, translator);
+    } catch (error) {
+      console.error(`Translation failed with library: ${error.message}`);
+      // If regular translation fails, attempt direct API call
+      // This is a fallback mechanism
+      console.log('Attempting direct API call as fallback...');
+      translatedData = await directDeeplTranslation(sourceData, targetLang, apiKey);
+    }
+
+    // Return translated data
     return new Response(JSON.stringify(translatedData), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
@@ -170,3 +196,70 @@ Deno.serve(async (req) => {
     });
   }
 });
+
+// Add this direct API call function as fallback
+async function directDeeplTranslation(
+  sourceData: Record<string, string>,
+  targetLang: string,
+  apiKey: string
+): Promise<Record<string, string>> {
+  const translatedData: Record<string, string> = {};
+  const entries = Object.entries(sourceData);
+  const deeplLang = LANGUAGE_MAP[targetLang] || targetLang.toUpperCase();
+
+  for (const [key, value] of entries) {
+    if (typeof value !== 'string') continue;
+
+    // Skip translation for items in DO_NOT_TRANSLATE list
+    if (DO_NOT_TRANSLATE.includes(value)) {
+      translatedData[key] = value;
+      continue;
+    }
+
+    // Handle variables like {{count}}
+    const variables: string[] = [];
+    const textWithPlaceholders = value.replace(/{{([^}]+)}}/g, (match) => {
+      variables.push(match);
+      return `__VAR${variables.length - 1}__`;
+    });
+
+    // Direct API call
+    try {
+      const response = await fetch('https://api.deepl.com/v2/translate', {
+        method: 'POST',
+        headers: {
+          Authorization: `DeepL-Auth-Key ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          text: [textWithPlaceholders],
+          target_lang: deeplLang,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`DeepL API error (${response.status}): ${errorText}`);
+      }
+
+      const data = await response.json();
+      let translatedText = data.translations[0].text;
+
+      // Restore variables
+      variables.forEach((variable, index) => {
+        translatedText = translatedText.replace(`__VAR${index}__`, variable);
+      });
+
+      translatedData[key] = translatedText;
+
+      // Throttle requests
+      await wait(200);
+    } catch (error) {
+      console.error(`Error translating key ${key}: ${error.message}`);
+      // Keep original text if translation fails
+      translatedData[key] = value;
+    }
+  }
+
+  return translatedData;
+}
