@@ -17,7 +17,7 @@ const LANGUAGE_MAP: Record<string, string> = {
   de: 'DE',
   it: 'IT',
   es: 'ES',
-  uk: 'UK', // Note: DeepL likely doesn't support Ukrainian
+  ru: 'RU',
 };
 
 const DO_NOT_TRANSLATE = ['Add to cart', 'Checkout', 'SKU', 'cart', 'Cart'];
