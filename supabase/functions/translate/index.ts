@@ -28,6 +28,31 @@ const DO_NOT_TRANSLATE = ['Add to cart', 'Checkout', 'SKU', 'cart', 'Cart'];
 // Helper to pause execution
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+// Check if we can connect to DeepL API
+async function checkDeeplConnectivity(apiKey: string): Promise<{ ok: boolean; message: string }> {
+  try {
+    const response = await fetch('https://api.deepl.com/v2/usage', {
+      method: 'GET',
+      headers: {
+        Authorization: `DeepL-Auth-Key ${apiKey}`,
+      },
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      return {
+        ok: true,
+        message: `DeepL API connected successfully. Character usage: ${data.character_count}/${data.character_limit}`,
+      };
+    } else {
+      const error = await response.text();
+      return { ok: false, message: `DeepL API error: ${response.status} - ${error}` };
+    }
+  } catch (error) {
+    return { ok: false, message: `Connection error: ${error.message}` };
+  }
+}
+
 // Single translateText function that uses the translator instance
 async function translateText(text: string, targetLang: string, translator: Translator): Promise<string> {
   try {
@@ -35,11 +60,19 @@ async function translateText(text: string, targetLang: string, translator: Trans
     const deeplLang = LANGUAGE_MAP[targetLang] || targetLang.toUpperCase();
 
     console.log(`Translating to ${deeplLang}...`);
-    const result = await translator.translateText(text, null, deeplLang);
+
+    // Add timeout handling
+    const result = await Promise.race([
+      translator.translateText(text, null, deeplLang),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('DeepL API request timed out after 15 seconds')), 15000)
+      ),
+    ]);
+
     return Array.isArray(result) ? result[0].text : result.text;
   } catch (error) {
-    console.error('DeepL translation error:', error);
-    throw new Error(`Translation failed: ${error.message}`);
+    console.error(`DeepL translation error for ${targetLang}:`, error);
+    throw new Error(`Translation failed for ${targetLang}: ${error.message || 'Unknown error'}`);
   }
 }
 
@@ -139,11 +172,26 @@ Deno.serve(async (req) => {
       );
     }
 
+    // Check DeepL connectivity
+    const connectivity = await checkDeeplConnectivity(apiKey);
+    if (!connectivity.ok) {
+      return new Response(
+        JSON.stringify({
+          error: `DeepL API connection failed: ${connectivity.message}`,
+        }),
+        {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
+    }
+    console.log(connectivity.message);
+
     // Parse request body
     let requestData;
     try {
       requestData = await req.json();
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
     } catch (e) {
       return new Response(JSON.stringify({ error: 'Invalid JSON in request body' }), {
         status: 400,
@@ -226,6 +274,7 @@ async function directDeeplTranslation(
 
     // Direct API call
     try {
+      console.log(`Making direct API call to DeepL for language: ${deeplLang}`);
       const response = await fetch('https://api.deepl.com/v2/translate', {
         method: 'POST',
         headers: {
@@ -240,6 +289,8 @@ async function directDeeplTranslation(
 
       if (!response.ok) {
         const errorText = await response.text();
+        console.error(`DeepL API error response: ${response.status} ${response.statusText}`);
+        console.error(`Response body: ${errorText}`);
         throw new Error(`DeepL API error (${response.status}): ${errorText}`);
       }
 
