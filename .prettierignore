@@ -1,0 +1,10 @@
+**/.git
+**/.hg
+**/node_modules
+**/.shopify
+**/.vscode
+**/.idea
+**/.vite
+dist/
+assets/
+input/
