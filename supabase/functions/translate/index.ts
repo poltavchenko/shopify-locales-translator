@@ -13,10 +13,6 @@ const DEEPL_API_KEY = Deno.env.get('DEEPL_API_KEY') || '';
 
 // DeepL language codes are uppercase
 const LANGUAGE_MAP: Record<string, string> = {
-  pl: 'PL',
-  de: 'DE',
-  it: 'IT',
-  es: 'ES',
   fr: 'FR',
 };
 
