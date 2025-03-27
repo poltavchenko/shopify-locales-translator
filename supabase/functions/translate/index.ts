@@ -39,6 +39,10 @@ async function translateText(text: string, targetLang: string): Promise<string> 
   }
 }
 
+// Add this function near the top of the file
+const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// Update the translateLocaleData function to include throttling:
 async function translateLocaleData(
   sourceData: Record<string, string>,
   targetLang: string
@@ -46,15 +50,39 @@ async function translateLocaleData(
   const translatedData: Record<string, string> = {};
   const entries = Object.entries(sourceData);
 
+  let requestCount = 0;
+  const THROTTLE_AFTER = 5; // Throttle after every 5 requests
+  const THROTTLE_TIME = 1000; // Wait 1 second
+
   for (const [key, value] of entries) {
     if (typeof value === 'string') {
+      // Add throttling to avoid rate limits
+      if (requestCount > 0 && requestCount % THROTTLE_AFTER === 0) {
+        await wait(THROTTLE_TIME);
+      }
+      requestCount++;
+
       const variables: string[] = [];
       const textWithPlaceholders = value.replace(/{{([^}]+)}}/g, (match) => {
         variables.push(match);
         return `__VAR${variables.length - 1}__`;
       });
 
-      let translatedText = await translateText(textWithPlaceholders, targetLang);
+      // Retry translation up to 3 times with increasing backoff
+      let attempts = 0;
+      let translatedText = '';
+      while (attempts < 3) {
+        try {
+          translatedText = await translateText(textWithPlaceholders, targetLang);
+          break;
+        } catch (error) {
+          attempts++;
+          if (attempts >= 3) throw error;
+
+          // Exponential backoff
+          await wait(1000 * Math.pow(2, attempts));
+        }
+      }
 
       variables.forEach((variable, index) => {
         translatedText = translatedText.replace(`__VAR${index}__`, variable);
