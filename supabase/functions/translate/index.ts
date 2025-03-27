@@ -12,11 +12,9 @@ const DEEPL_API_KEY = Deno.env.get('DEEPL_API_KEY') || '';
 const translator = new Translator(DEEPL_API_KEY);
 
 const LANGUAGE_MAP: Record<string, string> = {
-  pl: 'PL',
   de: 'DE',
   it: 'IT',
   es: 'ES',
-  'en-UK': 'EN-GB',
 };
 
 const DO_NOT_TRANSLATE = ['Add to cart', 'Checkout', 'SKU', 'cart', 'Cart'];
