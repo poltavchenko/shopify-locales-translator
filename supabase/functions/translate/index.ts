@@ -8,15 +8,8 @@ interface TranslateRequest {
   sourceData?: Record<string, string>;
 }
 
-// Use DEEPL_API_KEY directly (set with supabase secrets set)
-const translator = new Translator(DEEPL_API_KEY);
-
-// Check if API key is available
-if (!DEEPL_API_KEY) {
-  console.error('DeepL API key is missing! Make sure to set it with: supabase secrets set DEEPL_API_KEY=your_key');
-}
-
-const translator = new Translator(apiKey);
+// Get API key from environment or header
+const DEEPL_API_KEY = Deno.env.get('DEEPL_API_KEY') || '';
 
 // DeepL language codes are uppercase
 const LANGUAGE_MAP: Record<string, string> = {
@@ -24,7 +17,7 @@ const LANGUAGE_MAP: Record<string, string> = {
   de: 'DE',
   it: 'IT',
   es: 'ES',
-  // uk: 'UK', // DeepL doesn't support Ukrainian
+  fr: 'FR',
 };
 
 const DO_NOT_TRANSLATE = ['Add to cart', 'Checkout', 'SKU', 'cart', 'Cart'];
@@ -32,15 +25,11 @@ const DO_NOT_TRANSLATE = ['Add to cart', 'Checkout', 'SKU', 'cart', 'Cart'];
 // Helper to pause execution
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-async function translateText(text: string, targetLang: string): Promise<string> {
+// Single translateText function that uses the translator instance
+async function translateText(text: string, targetLang: string, translator: Translator): Promise<string> {
   try {
     // Map language code to DeepL format
     const deeplLang = LANGUAGE_MAP[targetLang] || targetLang.toUpperCase();
-
-    // Ensure we have a valid API key
-    if (!DEEPL_API_KEY) {
-      throw new Error('DeepL API key is not configured');
-    }
 
     console.log(`Translating to ${deeplLang}...`);
     const result = await translator.translateText(text, null, deeplLang);
@@ -51,9 +40,11 @@ async function translateText(text: string, targetLang: string): Promise<string> 
   }
 }
 
+// Single translateLocaleData function
 async function translateLocaleData(
   sourceData: Record<string, string>,
-  targetLang: string
+  targetLang: string,
+  translator: Translator
 ): Promise<Record<string, string>> {
   const translatedData: Record<string, string> = {};
   const entries = Object.entries(sourceData);
@@ -62,6 +53,7 @@ async function translateLocaleData(
   let requestCount = 0;
   const THROTTLE_AFTER = 5; // Throttle after every 5 requests
   const THROTTLE_TIME = 1000; // Wait 1 second
+  const MAX_ATTEMPTS = 3;
 
   for (const [key, value] of entries) {
     if (typeof value === 'string') {
@@ -88,11 +80,10 @@ async function translateLocaleData(
       // Retry logic with exponential backoff
       let attempts = 0;
       let translatedText = '';
-      const MAX_ATTEMPTS = 3;
 
       while (attempts < MAX_ATTEMPTS) {
         try {
-          translatedText = await translateText(textWithPlaceholders, targetLang);
+          translatedText = await translateText(textWithPlaceholders, targetLang, translator);
           break;
         } catch (error) {
           attempts++;
@@ -129,8 +120,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    // Check if API key is configured
-    // Get API key from header as fallback
+    // Get API key from environment or header
     const apiKey = DEEPL_API_KEY || req.headers.get('X-DeepL-API-Key') || '';
 
     if (!apiKey) {
@@ -146,7 +136,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Use apiKey variable instead of DEEPL_API_KEY in your translator
+    // Create translator instance with the API key
     const translator = new Translator(apiKey);
 
     // Parse request body
@@ -162,8 +152,9 @@ Deno.serve(async (req) => {
 
     // Perform translation
     console.log(`Starting translation to ${targetLang} with ${Object.keys(sourceData).length} strings`);
-    const translatedData = await translateLocaleData(sourceData, targetLang);
+    const translatedData = await translateLocaleData(sourceData, targetLang, translator);
 
+    // Return translated data - THIS WAS MISSING
     return new Response(JSON.stringify(translatedData), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
